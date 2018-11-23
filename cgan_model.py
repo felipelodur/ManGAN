@@ -1,3 +1,13 @@
+from random import randint
+from helpers import *
+
+import tensorflow as tf
+from random import randint
+from glob import glob
+import numpy as np
+import os
+import sys
+import math
 
 class CGAN():
 
@@ -176,11 +186,11 @@ class CGAN():
     def sample(self):
         self.loadmodel()
 
-        data = glob(os.path.join("dataset/imgs", "*.jpg"))
+        data = glob(os.path.join("imgs", "*.jpg"))
 
         datalen = len(data)
 
-        for i in range(min(100,datalen / self.batch_size)):
+        for i in range(min(100, int(datalen / self.batch_size))):
             batch_files = data[i*self.batch_size:(i+1)*self.batch_size]
             batch = np.array([get_image(batch_file) for batch_file in batch_files])
             batch_normalized = batch/255.0
