@@ -1,9 +1,8 @@
-from random import randint
 from helpers import *
-
-import tensorflow as tf
 from random import randint
 from glob import glob
+
+import tensorflow as tf
 import numpy as np
 import os
 import sys
@@ -83,6 +82,9 @@ class CGAN():
             s = self.output_size
             s2, s4, s8, s16, s32, s64, s128 = int(s/2), int(s/4), int(s/8), int(s/16), int(s/32), int(s/64), int(s/128)
             # image is (256 x 256 x input_c_dim)
+
+            extra = conv2d(img_in, self.gf_dim, name='g_extra_conv')
+
             e1 = conv2d(img_in, self.gf_dim, name='g_e1_conv') # e1 is (128 x 128 x self.gf_dim)
             e2 = bn(conv2d(lrelu(e1), self.gf_dim*2, name='g_e2_conv')) # e2 is (64 x 64 x self.gf_dim*2)
             e3 = bn(conv2d(lrelu(e2), self.gf_dim*4, name='g_e3_conv')) # e3 is (32 x 32 x self.gf_dim*4)
@@ -107,7 +109,7 @@ class CGAN():
 
             self.d7, self.d7_w, self.d7_b = deconv2d(tf.nn.relu(d6), [self.batch_size, s2, s2, self.gf_dim], name='g_d7', with_w=True)
             d7 = bn(self.d7)
-            d7 = tf.concat(axis=3, values=[d7, e1])
+            d7 = tf.concat(axis=3, values=[d7, extra])
             # d7 is (128 x 128 x self.gf_dim*1*2)
 
             self.d8, self.d8_w, self.d8_b = deconv2d(tf.nn.relu(d7), [self.batch_size, s, s, self.output_colors], name='g_d8', with_w=True)
@@ -160,13 +162,13 @@ class CGAN():
                 d_loss, _ = self.sess.run([self.d_loss, self.d_optim], feed_dict={self.real_images: batch_normalized, self.line_images: batch_edge, self.color_images: batch_colors})
                 g_loss, _ = self.sess.run([self.g_loss, self.g_optim], feed_dict={self.real_images: batch_normalized, self.line_images: batch_edge, self.color_images: batch_colors})
 
-                print("%d: [%d / %d] d_loss %f, g_loss %f" % (e, i, (datalen/self.batch_size), d_loss, g_loss))
-
+                
                 if i % 100 == 0:
                     recreation = self.sess.run(self.generated_images, feed_dict={self.real_images: base_normalized, self.line_images: base_edge, self.color_images: base_colors})
                     ims("results/"+str(e*100000 + i)+".jpg",merge_color(recreation, [self.batch_size_sqrt, self.batch_size_sqrt]))
 
                 if i % 500 == 0:
+                    print("%d: [%d / %d] d_loss %f, g_loss %f" % (e, i, (datalen/self.batch_size), d_loss, g_loss))
                     self.save("./checkpoint", e*100000 + i)
 
     def loadmodel(self, load_discrim=True):
