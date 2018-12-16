@@ -83,8 +83,6 @@ class CGAN():
             s2, s4, s8, s16, s32, s64, s128 = int(s/2), int(s/4), int(s/8), int(s/16), int(s/32), int(s/64), int(s/128)
             # image is (256 x 256 x input_c_dim)
 
-            extra = conv2d(img_in, self.gf_dim, name='g_extra_conv')
-
             e1 = conv2d(img_in, self.gf_dim, name='g_e1_conv') # e1 is (128 x 128 x self.gf_dim)
             e2 = bn(conv2d(lrelu(e1), self.gf_dim*2, name='g_e2_conv')) # e2 is (64 x 64 x self.gf_dim*2)
             e3 = bn(conv2d(lrelu(e2), self.gf_dim*4, name='g_e3_conv')) # e3 is (32 x 32 x self.gf_dim*4)
@@ -92,24 +90,24 @@ class CGAN():
             e5 = bn(conv2d(lrelu(e4), self.gf_dim*8, name='g_e5_conv')) # e5 is (8 x 8 x self.gf_dim*8)
 
 
-            self.d4, self.d4_w, self.d4_b = deconv2d(tf.nn.relu(e5), [self.batch_size, s16, s16, self.gf_dim*8], name='g_d4', with_w=True)
+            self.d4, self.d4_w, self.d4_b = deconv2d(tf.nn.lrelu(e5), [self.batch_size, s16, s16, self.gf_dim*8], name='g_d4', with_w=True)
             d4 = bn(self.d4)
             d4 = tf.concat(axis=3, values=[d4, e4])
             # d4 is (16 x 16 x self.gf_dim*8*2)
 
-            self.d5, self.d5_w, self.d5_b = deconv2d(tf.nn.relu(d4), [self.batch_size, s8, s8, self.gf_dim*4], name='g_d5', with_w=True)
+            self.d5, self.d5_w, self.d5_b = deconv2d(tf.nn.lrelu(d4), [self.batch_size, s8, s8, self.gf_dim*4], name='g_d5', with_w=True)
             d5 = bn(self.d5)
             d5 = tf.concat(axis=3, values=[d5, e3])
             # d5 is (32 x 32 x self.gf_dim*4*2)
 
-            self.d6, self.d6_w, self.d6_b = deconv2d(tf.nn.relu(d5), [self.batch_size, s4, s4, self.gf_dim*2], name='g_d6', with_w=True)
+            self.d6, self.d6_w, self.d6_b = deconv2d(tf.nn.lrelu(d5), [self.batch_size, s4, s4, self.gf_dim*2], name='g_d6', with_w=True)
             d6 = bn(self.d6)
             d6 = tf.concat(axis=3, values=[d6, e2])
             # d6 is (64 x 64 x self.gf_dim*2*2)
 
-            self.d7, self.d7_w, self.d7_b = deconv2d(tf.nn.relu(d6), [self.batch_size, s2, s2, self.gf_dim], name='g_d7', with_w=True)
+            self.d7, self.d7_w, self.d7_b = deconv2d(tf.nn.lrelu(d6), [self.batch_size, s2, s2, self.gf_dim], name='g_d7', with_w=True)
             d7 = bn(self.d7)
-            d7 = tf.concat(axis=3, values=[d7, extra])
+            d7 = tf.concat(axis=3, values=[d7, e1])
             # d7 is (128 x 128 x self.gf_dim*1*2)
 
             self.d8, self.d8_w, self.d8_b = deconv2d(tf.nn.relu(d7), [self.batch_size, s, s, self.output_colors], name='g_d8', with_w=True)
@@ -163,10 +161,12 @@ class CGAN():
                 g_loss, _ = self.sess.run([self.g_loss, self.g_optim], feed_dict={self.real_images: batch_normalized, self.line_images: batch_edge, self.color_images: batch_colors})
 
                 
+                # Save an example of training every 100 iterations
                 if i % 100 == 0:
                     recreation = self.sess.run(self.generated_images, feed_dict={self.real_images: base_normalized, self.line_images: base_edge, self.color_images: base_colors})
                     ims("results/"+str(e*100000 + i)+".jpg",merge_color(recreation, [self.batch_size_sqrt, self.batch_size_sqrt]))
 
+                # Save Checkpoint every 500 iterations
                 if i % 500 == 0:
                     print("%d: [%d / %d] d_loss %f, g_loss %f" % (e, i, (datalen/self.batch_size), d_loss, g_loss))
                     self.save("./checkpoint", e*100000 + i)
@@ -222,11 +222,11 @@ class CGAN():
                         global_step=step)
 
     def load(self, checkpoint_dir):
-        print(" [*] Reading checkpoint...")
+        print("Reading checkpoint...")
 
         model_dir = "tr"
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
-
+        
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
